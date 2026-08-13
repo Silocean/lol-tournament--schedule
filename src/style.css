@@ -446,15 +446,28 @@ select {
 }
 
 .team-mini {
-  display: flex;
+  display: grid;
+  grid-template-columns: 36px max-content;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
+  justify-content: start;
   min-width: 0;
 }
 
 .team-mini.right {
-  flex-direction: row-reverse;
+  grid-template-columns: max-content 36px;
+  justify-content: end;
   text-align: right;
+}
+
+.team-mini.right b {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.team-mini.right img {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .team-mini img,
@@ -470,6 +483,7 @@ select {
 .team b,
 .rank-team b {
   font-size: 15px;
+  white-space: nowrap;
 }
 
 .score-mini {
@@ -709,17 +723,28 @@ select {
 }
 
 .team {
-  display: flex;
+  display: grid;
+  grid-template-columns: 36px max-content;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: start;
+  column-gap: 10px;
   min-width: 0;
 }
 
 .team.right {
-  flex-direction: row-reverse;
-  justify-content: flex-end;
+  grid-template-columns: max-content 36px;
+  justify-content: end;
   text-align: right;
+}
+
+.team.right b {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.team.right img {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .team.winner b {
@@ -878,7 +903,7 @@ html[data-theme="ivory"] .rank-team img {
   .team:first-of-type,
   .team-mini:first-of-type {
     grid-area: home;
-    justify-content: flex-start;
+    justify-content: start;
   }
   .score,
   .score-mini {
@@ -888,9 +913,19 @@ html[data-theme="ivory"] .rank-team img {
   .team.right,
   .team-mini.right {
     grid-area: away;
-    flex-direction: row;
-    justify-content: flex-start;
+    grid-template-columns: 36px max-content;
+    justify-content: start;
     text-align: left;
+  }
+  .team.right b,
+  .team-mini.right b {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .team.right img,
+  .team-mini.right img {
+    grid-column: 1;
+    grid-row: 1;
   }
   .match-meta {
     display: none;
