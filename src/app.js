@@ -298,14 +298,19 @@ export function renderHero() {
   const next = splitEvents()
     .filter((e) => matchStatus(e) === 'upcoming' || matchStatus(e) === 'live')
     .sort((a, b) => a.startTime.localeCompare(b.startTime))[0]
+  const nextHome = next?.match?.teams?.[0]?.code || ''
+  const nextAway = next?.match?.teams?.[1]?.code || ''
+  const nextLabel = next
+    ? `下一场 ${formatTime(next.startTime)} ${nextHome} vs ${nextAway}`
+    : ''
 
   document.querySelector('#hero').innerHTML = `
     <article class="hero-card">
       <div class="kicker">LPL 2026 · ${escapeHtml(split.name)}</div>
       <h2>${escapeHtml(title)}</h2>
-      <p>${escapeHtml(subtitle)}${next ? ` · 下一场 ${formatTime(next.startTime)} ${next.match?.teams?.[0]?.code || ''} vs ${next.match?.teams?.[1]?.code || ''}` : ''}</p>
+      <p>${escapeHtml(subtitle)}${nextLabel ? ` · ${escapeHtml(nextLabel)}` : ''}</p>
     </article>
-    <div class="today-list">
+    <div class="today-list${todays.length ? '' : ' is-empty'}">
       <h3>今日赛程</h3>
       ${
         todays.length
@@ -327,7 +332,10 @@ export function renderHero() {
                 `
               })
               .join('')
-          : `<article class="today-card"><div class="time">今日</div><div>今日暂无 LPL 比赛，看看即将到来的赛程吧。</div></article>`
+          : `<div class="today-empty">
+              <strong>今日暂无比赛</strong>
+              <p>${nextLabel ? escapeHtml(nextLabel) : '本赛段后续赛程见下方列表'}</p>
+            </div>`
       }
     </div>
   `
@@ -355,12 +363,15 @@ export function renderHero() {
 export function renderFilters() {
   const teams = teamCodes()
   document.querySelector('#filters').innerHTML = `
+    <div class="filter-chips">
     ${['all:全部', 'today:今日', 'upcoming:未赛', 'completed:赛果']
       .map((item) => {
         const [id, label] = item.split(':')
-        return `<button class="chip ${state.filter === id ? 'active' : ''}" data-filter="${id}">${label}</button>`
+        return `<button type="button" class="chip ${state.filter === id ? 'active' : ''}" data-filter="${id}">${label}</button>`
       })
       .join('')}
+    </div>
+    <div class="filter-selects">
     <select class="select" data-stage>
       <option value="all">全部阶段</option>
       <option value="regular" ${state.stage === 'regular' ? 'selected' : ''}>组内赛</option>
@@ -383,6 +394,7 @@ export function renderFilters() {
           `<option value="${s.id}" ${state.splitId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`,
       ).join('')}
     </select>
+    </div>
   `
 
   document.querySelector('#filters').onclick = (e) => {
