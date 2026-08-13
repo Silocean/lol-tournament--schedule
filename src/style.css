@@ -434,7 +434,8 @@ select {
 }
 
 .team-mini b,
-.team b {
+.team b,
+.rank-team b {
   font-size: 15px;
 }
 
@@ -518,12 +519,19 @@ select {
   align-items: start;
 }
 
+.schedule-panel,
+.standings-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
 .panel-head {
   display: flex;
   justify-content: space-between;
   align-items: end;
   gap: 12px;
-  padding: 18px 18px 0;
+  padding: 0 18px;
   border-bottom: 0;
   box-shadow: none;
   background: transparent;
@@ -627,13 +635,6 @@ select {
 
 .team.loser {
   opacity: 0.55;
-}
-
-.team small,
-.rank-team small {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .score {

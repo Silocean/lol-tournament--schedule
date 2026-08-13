@@ -248,10 +248,7 @@ function teamCell(team, align = 'left', winnerCode) {
   return `
     <div class="${cls}">
       <img src="${httpsUrl(team.image)}" alt="${escapeHtml(team.code)}" />
-      <div>
-        <b>${escapeHtml(team.code)}</b>
-        <small>${escapeHtml(teamLabel(team))}</small>
-      </div>
+      <b>${escapeHtml(team.code)}</b>
     </div>
   `
 }
@@ -506,7 +503,7 @@ export function renderStandings() {
                       <td>
                         <div class="rank-team">
                           <img src="${httpsUrl(team.image)}" alt="">
-                          <div><b>${escapeHtml(team.code)}</b><small>${escapeHtml(teamLabel(team))}</small></div>
+                          <b>${escapeHtml(team.code)}</b>
                         </div>
                       </td>
                       <td>${rec.wins ?? 0}-${rec.losses ?? 0}</td>
