@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>LPL 2026 赛程 | 英雄联盟职业联赛</title>
+    <meta name="description" content="LPL 2026 第三赛段赛程、积分榜与今日对阵一览" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔</text></svg>" />
+    <script>
+      (function () {
+        try {
+          var id = localStorage.getItem('lpl-theme') || 'gold'
+          document.documentElement.setAttribute('data-theme', id)
+          var light = id === 'ivory'
+          document.documentElement.style.colorScheme = light ? 'light' : 'dark'
+        } catch (e) {}
+      })()
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #07080d;
+        color: #f6f1e6;
+        color-scheme: dark;
+      }
+      #boot-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: #07080d;
+        color: #e4bf62;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: 0.28em;
+        font-weight: 700;
+        transition: opacity 0.28s ease;
+      }
+      #boot-screen.is-done {
+        opacity: 0;
+        pointer-events: none;
+      }
+      html[data-theme='violet'],
+      html[data-theme='violet'] body,
+      html[data-theme='violet'] #boot-screen {
+        background: #0a0614;
+        color-scheme: dark;
+      }
+      html[data-theme='violet'] #boot-screen,
+      html[data-theme='violet'] {
+        color: #d4b3ff;
+      }
+      html[data-theme='cyan'],
+      html[data-theme='cyan'] body,
+      html[data-theme='cyan'] #boot-screen {
+        background: #051014;
+        color-scheme: dark;
+      }
+      html[data-theme='cyan'] #boot-screen,
+      html[data-theme='cyan'] {
+        color: #3ee0d0;
+      }
+      html[data-theme='crimson'],
+      html[data-theme='crimson'] body,
+      html[data-theme='crimson'] #boot-screen {
+        background: #100608;
+        color-scheme: dark;
+      }
+      html[data-theme='crimson'] #boot-screen,
+      html[data-theme='crimson'] {
+        color: #ff6b7a;
+      }
+      html[data-theme='azure'],
+      html[data-theme='azure'] body,
+      html[data-theme='azure'] #boot-screen {
+        background: #061018;
+        color-scheme: dark;
+      }
+      html[data-theme='azure'] #boot-screen,
+      html[data-theme='azure'] {
+        color: #7eb6ff;
+      }
+      html[data-theme='ivory'],
+      html[data-theme='ivory'] body,
+      html[data-theme='ivory'] #boot-screen {
+        background: #f3eee3;
+        color: #1c160c;
+        color-scheme: light;
+      }
+      html[data-theme='ivory'] #boot-screen {
+        color: #9a6f1f;
+      }
+    </style>
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Orbitron:wght@600;700&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Orbitron:wght@600;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
+  </head>
+  <body>
+    <div id="boot-screen" aria-hidden="true">LPL</div>
+    <div class="aurora" aria-hidden="true"></div>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">LPL</span>
+          <div>
+            <h1>英雄联盟职业联赛</h1>
+            <p>2026 赛季赛程中心</p>
+          </div>
+        </div>
+        <div class="top-meta">
+          <div class="theme-switch" id="theme-switch" role="radiogroup" aria-label="主题色">
+            <span class="theme-label">主题</span>
+            <button type="button" class="theme-dot active" data-theme="gold" role="radio" aria-checked="true" title="冠军金" aria-label="冠军金"></button>
+            <button type="button" class="theme-dot" data-theme="violet" role="radio" aria-checked="false" title="星辉紫" aria-label="星辉紫"></button>
+            <button type="button" class="theme-dot" data-theme="cyan" role="radio" aria-checked="false" title="海克斯" aria-label="海克斯"></button>
+            <button type="button" class="theme-dot" data-theme="crimson" role="radio" aria-checked="false" title="无畏红" aria-label="无畏红"></button>
+            <button type="button" class="theme-dot" data-theme="azure" role="radio" aria-checked="false" title="极光蓝" aria-label="极光蓝"></button>
+            <button type="button" class="theme-dot" data-theme="ivory" role="radio" aria-checked="false" title="象牙昼" aria-label="象牙昼"></button>
+          </div>
+          <span id="clock" class="clock"></span>
+          <span id="sync-status" class="sync">同步中…</span>
+        </div>
+      </header>
+
+      <section class="hero" id="hero"></section>
+      <section class="venues" id="venues"></section>
+
+      <div class="layout">
+        <section class="schedule-panel">
+          <div class="panel-head">
+            <h2>赛程</h2>
+            <div class="filters" id="filters"></div>
+          </div>
+          <div id="schedule" class="schedule"></div>
+        </section>
+        <aside class="standings-panel">
+          <div class="panel-head">
+            <h2>积分榜</h2>
+            <p class="hint">胜场积 1 分 · 败场不计分</p>
+          </div>
+          <div id="standings" class="standings"></div>
+        </aside>
+      </div>
+
+      <footer class="footer">
+        数据来自 LoL Esports · 仅供观赛查询 · 赛程如有变动以官方为准
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
