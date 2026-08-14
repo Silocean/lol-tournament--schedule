@@ -115,8 +115,8 @@ export function countdown(iso, now = Date.now()) {
   const hours = Math.floor(diff / 3600000)
   diff %= 3600000
   const mins = Math.floor(diff / 60000)
-  if (days > 0) return `${days}天${hours}小时后`
-  if (hours > 0) return `${hours}小时${mins}分后`
+  if (days > 0) return `${days}天${hours}时后`
+  if (hours > 0) return `${hours}时${mins}分后`
   return `${mins}分钟后`
 }
 
