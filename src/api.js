@@ -50,10 +50,10 @@ export const TEAM_CN = {
 export const ASCENT_TEAMS = new Set(['AL', 'BLG', 'EDG', 'JDG', 'LGD', 'TES', 'TT', 'WE'])
 export const NIRVANA_TEAMS = new Set(['IG', 'LNG', 'NIP', 'WBG'])
 
-const CACHE_KEY = 'lpl-schedule-cache-v1'
+const CACHE_KEY = 'lpl-schedule-cache-v2'
 
 async function fetchJson(url) {
-  const res = await fetch(url)
+  const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`${res.status} ${url}`)
   return res.json()
 }
@@ -65,13 +65,34 @@ async function fetchSchedulePage(pageToken) {
   return data?.data?.schedule || { events: [], pages: {} }
 }
 
+function eventDay(event) {
+  // schedule times are UTC; LPL days are CST (= UTC+8)
+  const d = new Date(Date.parse(event.startTime) + 8 * 3600 * 1000)
+  return d.toISOString().slice(0, 10)
+}
+
+function coversSplit(events, split) {
+  if (!events.length) return false
+  const days = events.map(eventDay)
+  return Math.min(...days) <= split.start && Math.max(...days) >= split.end
+}
+
+function uniqueEvents(events) {
+  const uniq = new Map()
+  for (const event of events) {
+    const id = event.match?.id || `${event.startTime}-${event.blockName}`
+    uniq.set(id, event)
+  }
+  return [...uniq.values()].sort((a, b) => a.startTime.localeCompare(b.startTime))
+}
+
 let eventsCache = null
 
 export function rememberEvents(events) {
   eventsCache = events
 }
 
-export async function fetchAllSchedule(force = false) {
+export async function fetchAllSchedule(force = false, split = SPLITS.find((s) => s.current) || SPLITS[2]) {
   if (eventsCache && !force) return eventsCache
 
   const events = []
@@ -81,31 +102,40 @@ export async function fetchAllSchedule(force = false) {
   let token = page.pages?.older
   const newerToken = page.pages?.newer
   const seen = new Set()
-  while (token && !seen.has(token) && seen.size < 12) {
+  while (token && !seen.has(token) && seen.size < 8) {
     seen.add(token)
-    page = await fetchSchedulePage(token)
+    try {
+      page = await fetchSchedulePage(token)
+    } catch (err) {
+      console.warn('schedule older page failed', err)
+      break
+    }
     const batch = page.events || []
+    if (!batch.length) break
     events.push(...batch)
     const oldest = batch.reduce((min, e) => (e.startTime < min ? e.startTime : min), '9999')
-    if (oldest < '2026-01-01') break
+    if (oldest < `${split.start}T00:00:00Z`) break
+    if (coversSplit(events, split)) break
     token = page.pages?.older
   }
 
   token = newerToken
   const seenNewer = new Set()
-  while (token && !seenNewer.has(token) && seenNewer.size < 6) {
+  while (token && !seenNewer.has(token) && seenNewer.size < 4) {
     seenNewer.add(token)
-    page = await fetchSchedulePage(token)
-    events.push(...(page.events || []))
+    try {
+      page = await fetchSchedulePage(token)
+    } catch (err) {
+      console.warn('schedule newer page failed', err)
+      break
+    }
+    const batch = page.events || []
+    if (!batch.length) break
+    events.push(...batch)
     token = page.pages?.newer
   }
 
-  const uniq = new Map()
-  for (const event of events) {
-    const id = event.match?.id || `${event.startTime}-${event.blockName}`
-    uniq.set(id, event)
-  }
-  eventsCache = [...uniq.values()].sort((a, b) => a.startTime.localeCompare(b.startTime))
+  eventsCache = uniqueEvents(events)
   return eventsCache
 }
 
@@ -145,17 +175,34 @@ export async function loadSnapshot() {
 }
 
 export async function loadLplData(split, { force = false } = {}) {
-  const [events, standings, live] = await Promise.all([
-    fetchAllSchedule(force),
+  const settled = await Promise.allSettled([
+    fetchAllSchedule(force, split),
     fetchStandings(split.tournamentId),
-    fetchLive().catch(() => []),
+    fetchLive(),
   ])
+
+  const eventsResult = settled[0]
+  const standingsResult = settled[1]
+  const liveResult = settled[2]
+
+  if (eventsResult.status !== 'fulfilled' || !eventsResult.value?.length) {
+    const reason = eventsResult.status === 'rejected' ? eventsResult.reason : new Error('empty schedule')
+    throw reason
+  }
+
   const prev = readCache() || {}
+  const standings =
+    standingsResult.status === 'fulfilled'
+      ? standingsResult.value
+      : prev.standings?.[split.tournamentId]?.data?.standings || []
+  const live = liveResult.status === 'fulfilled' ? liveResult.value : []
+
   const payload = {
     fetchedAt: new Date().toISOString(),
-    events,
+    events: eventsResult.value,
     standings: { ...(prev.standings || {}), [split.tournamentId]: { data: { standings } } },
     live,
+    partial: standingsResult.status !== 'fulfilled' || liveResult.status !== 'fulfilled',
   }
   writeCache(payload)
   return payload

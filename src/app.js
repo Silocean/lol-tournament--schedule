@@ -613,7 +613,9 @@ export async function bootstrap({ silent = false, force = true } = {}) {
     applyPayload(live, 'live')
     renderAll()
     const t = live.fetchedAt ? new Date(live.fetchedAt) : new Date()
-    renderSync(`已同步 ${t.toLocaleTimeString('zh-CN', { hour12: false })}`, 'ok')
+    const time = t.toLocaleTimeString('zh-CN', { hour12: false })
+    if (live.partial) renderSync(`已同步赛程 ${time}（部分数据降级）`, 'stale')
+    else renderSync(`已同步 ${time}`, 'ok')
   } catch (err) {
     console.error(err)
     if (!state.events.length) {
