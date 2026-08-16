@@ -226,15 +226,27 @@ select {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 56px;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 56px;
   height: 56px;
+  padding: 0 10px;
   border-radius: 16px;
   background: linear-gradient(160deg, var(--mark-from), var(--mark-to));
   color: var(--mark-ink);
   font-family: Orbitron, sans-serif;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
   box-shadow: 0 10px 30px var(--mark-shadow);
+}
+
+.brand-mark.is-long {
+  font-size: 11px;
+  letter-spacing: 0;
+  padding: 0 8px;
 }
 
 .brand h1 {
@@ -243,25 +255,27 @@ select {
 }
 
 .league-switch {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-top: 8px;
   padding: 3px;
-  border-radius: 999px;
+  max-width: min(100%, 420px);
+  border-radius: 14px;
   background: var(--soft);
   border: 1px solid var(--line);
 }
 
 .league-btn {
-  min-width: 52px;
-  padding: 4px 12px;
+  min-width: 48px;
+  padding: 4px 10px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font-family: Orbitron, sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.06em;
+  font-size: 11px;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -500,11 +514,19 @@ select {
 .team-hit img,
 .team-mini img,
 .team img,
-.rank-team img {
+.rank-team img,
+.team-img-fallback {
   width: 36px;
   height: 36px;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.28));
+}
+
+.team-img-fallback {
+  display: inline-block;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
 }
 
 .team-hit b,
@@ -950,7 +972,8 @@ select {
 html[data-theme="ivory"] .team-hit img,
 html[data-theme="ivory"] .team img,
 html[data-theme="ivory"] .team-mini img,
-html[data-theme="ivory"] .rank-team img {
+html[data-theme="ivory"] .rank-team img,
+html[data-theme="ivory"] .team-img-fallback {
   background: #1a1c24;
   border-radius: 8px;
   padding: 4px;

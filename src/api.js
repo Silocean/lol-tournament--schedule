@@ -5,8 +5,7 @@ export const LEAGUES = {
     code: 'LPL',
     name: '英雄联盟职业联赛',
     region: '中国大陆赛区',
-    tzOffsetHours: 8,
-    tzLabel: '北京时间',
+
     default: true,
     splits: [
       {
@@ -83,8 +82,7 @@ export const LEAGUES = {
     code: 'LCK',
     name: '英雄联盟韩国冠军联赛',
     region: '韩国赛区',
-    tzOffsetHours: 9,
-    tzLabel: '韩国时间',
+
     splits: [
       {
         id: 's1',
@@ -143,9 +141,257 @@ export const LEAGUES = {
       { id: 'qualifier', label: '资格赛' },
     ],
   },
+  lec: {
+    id: '98767991302996019',
+    slug: 'lec',
+    code: 'LEC',
+    name: '英雄联盟欧洲联赛',
+    region: 'EMEA赛区',
+
+    splits: [
+      {
+        id: 's1',
+        name: '第一赛段',
+        tournamentId: '115548424304940735',
+        start: '2026-01-16',
+        end: '2026-03-01',
+      },
+      {
+        id: 's2',
+        name: '第二赛段',
+        tournamentId: '115548668058343983',
+        start: '2026-03-27',
+        end: '2026-06-07',
+      },
+      {
+        id: 's3',
+        name: '第三赛段',
+        tournamentId: '115548681802226458',
+        start: '2026-07-23',
+        end: '2026-09-20',
+        current: true,
+      },
+    ],
+    teamNames: {
+      G2: 'G2',
+      FNC: 'Fnatic',
+      KC: 'Karmine Corp',
+      VIT: 'Vitality',
+      MKOI: 'Movistar KOI',
+      TH: 'Heretics',
+      NAVI: 'NAVI',
+      GX: 'GIANTX',
+      SK: 'SK Gaming',
+      SHFT: 'Shifters',
+    },
+    teamSlugs: {
+      G2: 'g2-esports',
+      FNC: 'fnatic',
+      KC: 'karmine-corp',
+      VIT: 'team-vitality',
+      MKOI: 'mad-lions',
+      TH: 'team-heretics-lec',
+      NAVI: 'natus-vincere',
+      GX: 'giantx-lec',
+      SK: 'sk-gaming',
+      SHFT: 'team-bds',
+    },
+    ascentTeams: [],
+    nirvanaTeams: [],
+    stageFilters: [
+      { id: 'all', label: '全部阶段' },
+      { id: 'regular', label: '组内赛' },
+      { id: 'knights', label: '入围赛' },
+      { id: 'playoffs', label: '淘汰赛' },
+      { id: 'qualifier', label: '资格赛' },
+    ],
+  },
+  lcs: {
+    id: '98767991299243165',
+    slug: 'lcs',
+    code: 'LCS',
+    name: '英雄联盟北美联赛',
+    region: '北美赛区',
+
+    splits: [
+      {
+        id: 's1',
+        name: '第一赛段',
+        tournamentId: '115564596163517554',
+        start: '2026-01-24',
+        end: '2026-03-02',
+      },
+      {
+        id: 's2',
+        name: '第二赛段',
+        tournamentId: '115564760172712809',
+        start: '2026-04-04',
+        end: '2026-06-15',
+      },
+      {
+        id: 's3',
+        name: '第三赛段',
+        tournamentId: '115564797158840434',
+        start: '2026-07-25',
+        end: '2026-10-05',
+        current: true,
+      },
+    ],
+    teamNames: {
+      C9: 'Cloud9',
+      TLAW: 'Team Liquid',
+      FLY: 'FlyQuest',
+      DIG: 'Dignitas',
+      SR: 'Shopify Rebellion',
+      LYON: 'LYON',
+      DSG: 'Disguised',
+      SEN: 'Sentinels',
+    },
+    teamSlugs: {
+      C9: 'cloud9',
+      TLAW: 'team-liquid',
+      FLY: 'flyquest',
+      DIG: 'dignitas',
+      SR: 'shopify-rebellion',
+      LYON: 'lyon-gaming',
+      DSG: 'disguised',
+      SEN: 'sentinels',
+    },
+    ascentTeams: [],
+    nirvanaTeams: [],
+    stageFilters: [
+      { id: 'all', label: '全部阶段' },
+      { id: 'regular', label: '组内赛' },
+      { id: 'knights', label: '入围赛' },
+      { id: 'playoffs', label: '淘汰赛' },
+      { id: 'qualifier', label: '资格赛' },
+    ],
+  },
+  lcp: {
+    id: '113476371197627891',
+    slug: 'lcp',
+    code: 'LCP',
+    name: '英雄联盟太平洋联赛',
+    region: '太平洋赛区',
+
+    splits: [
+      {
+        id: 's1',
+        name: '第一赛段',
+        tournamentId: '115570600643843079',
+        start: '2026-01-15',
+        end: '2026-03-01',
+      },
+      {
+        id: 's2',
+        name: '第二赛段',
+        tournamentId: '115570683338104198',
+        start: '2026-04-03',
+        end: '2026-06-07',
+      },
+      {
+        id: 's3',
+        name: '第三赛段',
+        tournamentId: '115570728597462574',
+        start: '2026-07-24',
+        end: '2026-08-30',
+        current: true,
+      },
+    ],
+    teamNames: {
+      CFO: 'CFO',
+      GAM: 'GAM',
+      TSW: 'Team Secret Whales',
+      DFM: 'DetonatioN FM',
+      SHG: 'SoftBank HAWKS',
+      DCG: 'Deep Cross',
+      MVK: 'MVK',
+      GZ: 'Ground Zero',
+    },
+    teamSlugs: {
+      CFO: 'ctbc-flying-oyster',
+      GAM: 'gam-esports',
+      TSW: 'team-secret-whales',
+      DFM: 'detonation-focusme',
+      SHG: 'fukuoka-softbank-hawks-gaming',
+      DCG: 'deep-cross-gaming',
+      MVK: 'saigon-buffalo-esports',
+      GZ: 'ground-zero',
+    },
+    ascentTeams: [],
+    nirvanaTeams: [],
+    stageFilters: [
+      { id: 'all', label: '全部阶段' },
+      { id: 'regular', label: '组内赛' },
+      { id: 'knights', label: '入围赛' },
+      { id: 'playoffs', label: '淘汰赛' },
+      { id: 'qualifier', label: '资格赛' },
+    ],
+  },
+  cblol: {
+    id: '98767991332355509',
+    slug: 'cblol-brazil',
+    code: 'CBLOL',
+    name: '英雄联盟巴西联赛',
+    region: '巴西赛区',
+
+    splits: [
+      {
+        id: 's1',
+        name: '第一赛段',
+        tournamentId: '115565518151768348',
+        start: '2026-01-17',
+        end: '2026-03-01',
+      },
+      {
+        id: 's2',
+        name: '第二赛段',
+        tournamentId: '115565650134506778',
+        start: '2026-03-28',
+        end: '2026-06-07',
+      },
+      {
+        id: 's3',
+        name: '第三赛段',
+        tournamentId: '115565671525288828',
+        start: '2026-07-25',
+        end: '2026-10-11',
+        current: true,
+      },
+    ],
+    teamNames: {
+      LOUD: 'LOUD',
+      PAIN: 'paiN',
+      FUR: 'FURIA',
+      VKS: 'Vivo Keyd',
+      RED: 'RED',
+      FX: 'Fluxo',
+      LEV: 'LEVIATÁN',
+      LOS: 'LOS',
+    },
+    teamSlugs: {
+      LOUD: 'loud',
+      PAIN: 'pain-gaming',
+      FUR: 'furia',
+      VKS: 'vivo-keyd',
+      RED: 'red-kalunga',
+      FX: 'fluxo',
+      LEV: 'leviatan-esports',
+      LOS: 'los',
+    },
+    ascentTeams: [],
+    nirvanaTeams: [],
+    stageFilters: [
+      { id: 'all', label: '全部阶段' },
+      { id: 'regular', label: '组内赛' },
+      { id: 'knights', label: '入围赛' },
+      { id: 'playoffs', label: '淘汰赛' },
+      { id: 'qualifier', label: '资格赛' },
+    ],
+  },
 }
 
-export const LEAGUE_ORDER = ['lpl', 'lck']
+export const LEAGUE_ORDER = ['lpl', 'lck', 'lec', 'lcs', 'lcp', 'cblol']
 
 export const ROLE_CN = {
   top: '上单',
@@ -189,10 +435,10 @@ function cacheKey(leagueId) {
 /** @deprecated use getLeague().splits — kept for older imports */
 export const SPLITS = LEAGUES.lpl.splits
 export const TEAM_CN = LEAGUES.lpl.teamNames
-export const TEAM_SLUGS = {
-  ...LEAGUES.lpl.teamSlugs,
-  ...LEAGUES.lck.teamSlugs,
-}
+export const TEAM_SLUGS = Object.assign(
+  {},
+  ...LEAGUE_ORDER.map((id) => LEAGUES[id].teamSlugs),
+)
 export const ASCENT_TEAMS = new Set(LEAGUES.lpl.ascentTeams)
 export const NIRVANA_TEAMS = new Set(LEAGUES.lpl.nirvanaTeams)
 
@@ -210,14 +456,17 @@ async function fetchSchedulePage(leagueId, pageToken) {
   return data?.data?.schedule || { events: [], pages: {} }
 }
 
-function eventDay(event, offsetHours = 8) {
-  const d = new Date(Date.parse(event.startTime) + offsetHours * 3600 * 1000)
-  return d.toISOString().slice(0, 10)
+function eventDay(event) {
+  const d = new Date(Date.parse(event.startTime))
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
-function coversSplit(events, split, offsetHours) {
+function coversSplit(events, split) {
   if (!events.length) return false
-  const days = events.map((e) => eventDay(e, offsetHours))
+  const days = events.map((e) => eventDay(e))
   return Math.min(...days) <= split.start && Math.max(...days) >= split.end
 }
 
@@ -247,8 +496,6 @@ export async function fetchAllSchedule(
 ) {
   if (!force && eventsCacheByLeague.has(leagueId)) return eventsCacheByLeague.get(leagueId)
 
-  const league = getLeague(leagueId)
-  const offset = league.tzOffsetHours
   const events = []
   let page = await fetchSchedulePage(leagueId)
   events.push(...(page.events || []))
@@ -269,7 +516,7 @@ export async function fetchAllSchedule(
     events.push(...batch)
     const oldest = batch.reduce((min, e) => (e.startTime < min ? e.startTime : min), '9999')
     if (oldest < `${split.start}T00:00:00Z`) break
-    if (coversSplit(events, split, offset)) break
+    if (coversSplit(events, split)) break
     token = page.pages?.older
   }
 

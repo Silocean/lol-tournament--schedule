@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
     <title>LPL 2026 赛程 | 英雄联盟职业联赛</title>
-    <meta name="description" content="LPL / LCK 2026 赛程、积分榜与今日对阵一览" />
+    <meta name="description" content="LPL / LCK / LEC / LCS / LCP / CBLOL 2026 赛程、积分榜与今日对阵一览" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔</text></svg>" />
     <script>
       (function () {
@@ -94,7 +94,7 @@
         color: #9a6f1f;
       }
     </style>
-    <link rel="stylesheet" href="/src/style.css?v=league-lck-1" />
+    <link rel="stylesheet" href="/src/style.css?v=league-majors-3" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -120,10 +120,7 @@
           <div>
             <h1>英雄联盟职业联赛</h1>
             <p>2026 赛季赛程中心</p>
-            <div class="league-switch" role="radiogroup" aria-label="选择联赛">
-              <button type="button" class="league-btn active" data-league="lpl" role="radio" aria-checked="true">LPL</button>
-              <button type="button" class="league-btn" data-league="lck" role="radio" aria-checked="false">LCK</button>
-            </div>
+            <div class="league-switch" id="league-switch" role="radiogroup" aria-label="选择联赛"></div>
           </div>
         </div>
         <div class="top-meta">
@@ -164,10 +161,10 @@
       </div>
 
       <footer class="footer">
-        数据来自 LoL Esports · 支持 LPL / LCK · 仅供观赛查询 · 赛程如有变动以官方为准
+        数据来自 LoL Esports · 支持 LPL / LCK / LEC / LCS / LCP / CBLOL · 仅供观赛查询 · 赛程如有变动以官方为准
       </footer>
     </div>
     <div id="team-modal" class="team-modal" hidden></div>
-    <script type="module" src="/src/main.js?v=league-lck-1"></script>
+    <script type="module" src="/src/main.js?v=league-majors-3"></script>
   </body>
 </html>

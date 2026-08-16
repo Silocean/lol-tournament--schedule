@@ -1,4 +1,5 @@
 import {
+  LEAGUE_ORDER,
   ROLE_CN,
   ROLE_ORDER,
   getLeague,
@@ -44,35 +45,49 @@ function ensureSplitId() {
 
 ensureSplitId()
 
-export function tzOffsetMs() {
-  return currentLeague().tzOffsetHours * 3600 * 1000
-}
-
-export function toLeagueTime(iso) {
-  return new Date(Date.parse(iso) + tzOffsetMs())
+export function toLocalDate(iso) {
+  return new Date(Date.parse(iso))
 }
 
 export function leagueDateKey(isoOrDate) {
-  const d = typeof isoOrDate === 'string' ? toLeagueTime(isoOrDate) : isoOrDate
-  return d.toISOString().slice(0, 10)
+  const d = typeof isoOrDate === 'string' ? toLocalDate(isoOrDate) : isoOrDate
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
+export function todayLocal() {
+  return leagueDateKey(new Date())
+}
+
+/** @deprecated use todayLocal */
 export function todayLeague() {
-  return new Date(Date.now() + tzOffsetMs()).toISOString().slice(0, 10)
+  return todayLocal()
 }
 
 export function formatDate(iso) {
-  const d = toLeagueTime(iso)
-  return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 周${WEEKDAYS[d.getUTCDay()]}`
+  const d = toLocalDate(iso)
+  return `${d.getMonth() + 1}月${d.getDate()}日 周${WEEKDAYS[d.getDay()]}`
 }
 
 export function formatTime(iso) {
-  const d = toLeagueTime(iso)
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+  const d = toLocalDate(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export function httpsUrl(url) {
-  return (url || '').replace(/^http:\/\//, 'https://')
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('//')) return `https:${raw}`
+  return raw.replace(/^http:\/\//i, 'https://')
+}
+
+function teamImg(url, alt = '', extraClass = '') {
+  const src = httpsUrl(url)
+  const cls = extraClass ? ` class="${extraClass}"` : ''
+  if (!src) return `<span class="team-img-fallback" aria-hidden="true"></span>`
+  return `<img${cls} src="${src}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async" />`
 }
 
 export function teamLabel(team) {
@@ -224,27 +239,98 @@ export function gameDiffMap() {
 
 export function normalizeSections(standings) {
   const stages = standings?.[0]?.stages || []
-  const groupStage =
-    stages.find((s) => s.slug === 'group_stage' || s.slug === 'groups') || stages[0]
+  const groupStage = pickStandingsStage(stages)
   const ascent = new Set(currentLeague().ascentTeams || [])
   const nirvana = new Set(currentLeague().nirvanaTeams || [])
-  const sections = (groupStage?.sections || []).map((section) => {
-    const codes = new Set(
-      (section.rankings || []).flatMap((row) => (row.teams || []).map((t) => t.code)),
-    )
-    const ascentN = [...codes].filter((c) => ascent.has(c)).length
-    const nirvanaN = [...codes].filter((c) => nirvana.has(c)).length
-    let name = section.name
-    if (ascentN >= 6) name = '登峰组'
-    else if (nirvanaN >= 3) name = '涅槃组'
-    return { ...section, name }
-  })
-  const order = { 登峰组: 0, 涅槃组: 1, 传奇组: 0, 突破组: 1 }
+  const sections = (groupStage?.sections || [])
+    .map((section) => {
+      const rankings = sectionHasRankings(section)
+        ? section.rankings
+        : rankingsFromMatches(section.matches)
+      const codes = new Set((rankings || []).flatMap((row) => (row.teams || []).map((t) => t.code)))
+      const ascentN = [...codes].filter((c) => ascent.has(c)).length
+      const nirvanaN = [...codes].filter((c) => nirvana.has(c)).length
+      let name = section.name
+      if (ascentN >= 6) name = '登峰组'
+      else if (nirvanaN >= 3) name = '涅槃组'
+      else if ((groupStage?.slug === 'swiss' || (section.name || '').includes('瑞士')) && name) {
+        name = section.name || '瑞士轮'
+      }
+      return { ...section, name, rankings }
+    })
+    .filter((section) => (section.rankings || []).some((row) => (row.teams || []).length))
+  const order = { 登峰组: 0, 涅槃组: 1, 传奇组: 0, 突破组: 1, 瑞士轮: 0 }
   sections.sort((a, b) => (order[a.name] ?? 9) - (order[b.name] ?? 9))
   return sections
 }
 
-function promotionTag(groupName, rank, groupSize) {
+function sectionHasRankings(section) {
+  return (section?.rankings || []).some((row) => (row.teams || []).length)
+}
+
+function stageHasStandings(stage) {
+  return (stage?.sections || []).some(
+    (section) =>
+      sectionHasRankings(section) ||
+      (section.matches || []).some((m) => m.state === 'completed' && (m.teams || []).length >= 2),
+  )
+}
+
+function pickStandingsStage(stages) {
+  const preferred = ['group_stage', 'groups', 'regular_season', 'swiss']
+  for (const slug of preferred) {
+    const stage = stages.find((s) => s.slug === slug)
+    if (stage && stageHasStandings(stage)) return stage
+  }
+  return stages.find(stageHasStandings) || stages[0]
+}
+
+function rankingsFromMatches(matches) {
+  const rec = new Map()
+  for (const match of matches || []) {
+    if (match.state !== 'completed') continue
+    const teams = match.teams || []
+    if (teams.length < 2) continue
+    for (const team of teams) {
+      if (!team?.code || team.code === 'TBD') continue
+      const row = rec.get(team.code) || {
+        code: team.code,
+        name: team.name,
+        image: team.image,
+        record: { wins: 0, losses: 0 },
+      }
+      row.name = team.name || row.name
+      row.image = team.image || row.image
+      if (team.result?.outcome === 'win') row.record.wins += 1
+      else if (team.result?.outcome === 'loss') row.record.losses += 1
+      rec.set(team.code, row)
+    }
+  }
+  const sorted = [...rec.values()].sort(
+    (a, b) => b.record.wins - a.record.wins || a.record.losses - b.record.losses || a.code.localeCompare(b.code),
+  )
+  const rankings = []
+  let ordinal = 0
+  let prevKey = ''
+  sorted.forEach((team, index) => {
+    const key = `${team.record.wins}-${team.record.losses}`
+    if (key !== prevKey) {
+      ordinal = index + 1
+      prevKey = key
+    }
+    rankings.push({ ordinal, teams: [team] })
+  })
+  return rankings
+}
+
+function promotionTag(groupName, rank, groupSize, team) {
+  if ((groupName || '').includes('瑞士')) {
+    const wins = team?.record?.wins ?? 0
+    const losses = team?.record?.losses ?? 0
+    if (wins >= 3) return { text: '晋级', cls: 'ok' }
+    if (losses >= 3) return { text: '淘汰', cls: 'bad' }
+    return { text: '进行中', cls: 'warn' }
+  }
   if (groupName === '登峰组' || groupName === '传奇组') {
     if (rank <= (groupName === '传奇组' ? 2 : 6)) return { text: '直接晋级', cls: 'ok' }
     return { text: groupName === '传奇组' ? '竞争区' : '骑士之路', cls: 'warn' }
@@ -269,7 +355,7 @@ function teamMini(team, right = false) {
   const code = team.code || ''
   const clickable = code && code !== 'TBD'
   const cls = ['team-mini', right ? 'right' : ''].filter(Boolean).join(' ')
-  const body = `<img src="${httpsUrl(team.image)}" alt=""><b>${escapeHtml(code)}</b>`
+  const body = `${teamImg(team.image, code)}<b>${escapeHtml(code)}</b>`
   if (!clickable) return `<div class="${cls}">${body}</div>`
   return `<div class="${cls}"><button type="button" class="team-hit" data-open-team="${escapeHtml(code)}" title="查看 ${escapeHtml(code)} 详情">${body}</button></div>`
 }
@@ -286,7 +372,7 @@ function teamCell(team, align = 'left', winnerCode) {
     .filter(Boolean)
     .join(' ')
   const body = `
-      <img src="${httpsUrl(team.image)}" alt="${escapeHtml(code)}" />
+      ${teamImg(team.image, code)}
       <b>${escapeHtml(code)}</b>
   `
   if (!clickable) return `<div class="${cls}">${body}</div>`
@@ -315,8 +401,8 @@ function statusBadge(status, event) {
 export function renderClock() {
   const el = document.querySelector('#clock')
   if (!el) return
-  const now = new Date(Date.now() + tzOffsetMs())
-  el.textContent = `${currentLeague().tzLabel} ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}:${String(now.getUTCSeconds()).padStart(2, '0')}`
+  const now = new Date()
+  el.textContent = `本地时间 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
 }
 
 export function renderSync(text, cls = '') {
@@ -331,15 +417,22 @@ export function renderBrand() {
   const mark = document.querySelector('.brand-mark')
   const title = document.querySelector('.brand h1')
   const sub = document.querySelector('.brand p')
-  if (mark) mark.textContent = league.code
+  if (mark) {
+    mark.textContent = league.code
+    mark.classList.toggle('is-long', String(league.code || '').length > 3)
+  }
   if (title) title.textContent = league.name
-  if (sub) sub.textContent = '2026 赛季赛程中心'
+  if (sub) sub.textContent = `${league.region} · 2026 赛季赛程`
   document.title = `${league.code} 2026 赛程 | ${league.name}`
-  document.querySelectorAll('[data-league]').forEach((btn) => {
-    const active = btn.getAttribute('data-league') === state.leagueId
-    btn.classList.toggle('active', active)
-    btn.setAttribute('aria-checked', active ? 'true' : 'false')
-  })
+
+  const switchEl = document.querySelector('#league-switch')
+  if (switchEl) {
+    switchEl.innerHTML = LEAGUE_ORDER.map((id) => {
+      const item = getLeague(id)
+      const active = id === state.leagueId
+      return `<button type="button" class="league-btn${active ? ' active' : ''}" data-league="${id}" role="radio" aria-checked="${active ? 'true' : 'false'}" title="${escapeHtml(item.name)}">${escapeHtml(item.code)}</button>`
+    }).join('')
+  }
 }
 
 export function renderHero() {
@@ -576,14 +669,14 @@ export function renderStandings() {
                   const rec = team.record || {}
                   const diff = diffs.get(team.code)
                   const diffText = diff ? `${diff.gf - diff.ga > 0 ? '+' : ''}${diff.gf - diff.ga}` : '-'
-                  const tag = promotionTag(section.name, rank, rows.length)
+                  const tag = promotionTag(section.name, rank, rows.length, team)
                   return `
                     <tr>
                       <td class="rank">${rank}</td>
                       <td>
                         <div class="rank-team">
                           <button type="button" class="team-hit" data-open-team="${escapeHtml(team.code)}" title="查看 ${escapeHtml(team.code)} 详情">
-                            <img src="${httpsUrl(team.image)}" alt="">
+                            ${teamImg(team.image, team.code)}
                             <b>${escapeHtml(team.code)}</b>
                           </button>
                         </div>
@@ -697,7 +790,7 @@ export function renderTeamModal() {
 
   const basic = teamBasicFromSchedule(modal.code)
   const detail = modal.detail
-  const image = httpsUrl(detail?.image || detail?.alternativeImage || basic.image)
+  const image = detail?.image || detail?.alternativeImage || basic.image
   const name = detail?.name || teamLabel(basic)
   const region = detail?.homeLeague?.region || detail?.homeLeague?.name || currentLeague().region
   const standing = findStandingRow(modal.code)
@@ -712,7 +805,7 @@ export function renderTeamModal() {
     <aside class="team-drawer" role="dialog" aria-modal="true" aria-labelledby="team-drawer-title">
       <button type="button" class="team-drawer-close" data-close-team-modal aria-label="关闭">×</button>
       <header class="team-drawer-head">
-        <img class="team-drawer-logo" src="${image}" alt="${escapeHtml(modal.code)}" />
+        ${teamImg(image, modal.code, 'team-drawer-logo')}
         <div>
           <div class="team-drawer-code">${escapeHtml(modal.code)}</div>
           <h2 id="team-drawer-title">${escapeHtml(name)}</h2>
@@ -746,7 +839,7 @@ export function renderTeamModal() {
                     .map(
                       (p) => `
                     <article class="player-card">
-                      <img src="${httpsUrl(p.image)}" alt="${escapeHtml(p.summonerName || '')}" loading="lazy" />
+                      ${teamImg(p.image, p.summonerName || '')}
                       <div>
                         <b>${escapeHtml(p.summonerName || '—')}</b>
                         <span class="player-role">${escapeHtml(roleLabel(p.role))}</span>
@@ -911,6 +1004,7 @@ export function bindLeagueSwitch() {
 
 export async function bootstrap({ silent = false, force = true } = {}) {
   ensureSplitId()
+  renderBrand()
   if (!silent) renderSync('同步中…')
   const cache = readCache(state.leagueId)
   if (cache?.events?.length) {
