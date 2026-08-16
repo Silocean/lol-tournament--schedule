@@ -10,6 +10,7 @@ const ALLOWED_PARAMS = {
   getSchedule: ['hl', 'leagueId', 'pageToken'],
   getStandings: ['hl', 'tournamentId'],
   getLive: ['hl'],
+  getTeams: ['hl', 'id'],
 }
 
 function buildTarget(endpoint, incoming) {
@@ -28,6 +29,7 @@ function buildTarget(endpoint, incoming) {
 function cacheControlFor(endpoint, status) {
   if (status >= 400) return 'no-store'
   if (endpoint === 'getLive') return 'public, s-maxage=5, stale-while-revalidate=15'
+  if (endpoint === 'getTeams') return 'public, s-maxage=300, stale-while-revalidate=600'
   return 'public, s-maxage=30, stale-while-revalidate=60'
 }
 

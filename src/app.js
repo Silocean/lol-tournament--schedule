@@ -1,8 +1,11 @@
 import {
   ASCENT_TEAMS,
   NIRVANA_TEAMS,
+  ROLE_CN,
+  ROLE_ORDER,
   SPLITS,
   TEAM_CN,
+  fetchTeamDetail,
   loadLplData,
   loadSnapshot,
   readCache,
@@ -20,6 +23,7 @@ export const state = {
   liveIds: new Set(),
   fetchedAt: null,
   source: 'live',
+  teamModal: null, // { code, loading, detail, error }
 }
 
 export function currentSplit() {
@@ -236,7 +240,18 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
 }
 
+function teamMini(team, right = false) {
+  const code = team.code || ''
+  const clickable = code && code !== 'TBD'
+  const cls = ['team-mini', right ? 'right' : ''].filter(Boolean).join(' ')
+  const body = `<img src="${httpsUrl(team.image)}" alt=""><b>${escapeHtml(code)}</b>`
+  if (!clickable) return `<div class="${cls}">${body}</div>`
+  return `<div class="${cls}"><button type="button" class="team-hit" data-open-team="${escapeHtml(code)}" title="查看 ${escapeHtml(code)} 详情">${body}</button></div>`
+}
+
 function teamCell(team, align = 'left', winnerCode) {
+  const code = team.code || ''
+  const clickable = code && code !== 'TBD'
   const cls = [
     'team',
     align === 'right' ? 'right' : '',
@@ -245,10 +260,16 @@ function teamCell(team, align = 'left', winnerCode) {
   ]
     .filter(Boolean)
     .join(' ')
+  const body = `
+      <img src="${httpsUrl(team.image)}" alt="${escapeHtml(code)}" />
+      <b>${escapeHtml(code)}</b>
+  `
+  if (!clickable) return `<div class="${cls}">${body}</div>`
   return `
     <div class="${cls}">
-      <img src="${httpsUrl(team.image)}" alt="${escapeHtml(team.code)}" />
-      <b>${escapeHtml(team.code)}</b>
+      <button type="button" class="team-hit" data-open-team="${escapeHtml(code)}" title="查看 ${escapeHtml(code)} 详情">
+        ${body}
+      </button>
     </div>
   `
 }
@@ -325,9 +346,9 @@ export function renderHero() {
                 return `
                   <article class="today-card">
                     <div class="time">${formatTime(event.startTime)}<div>${statusBadge(status, event)}</div></div>
-                    <div class="team-mini"><img src="${httpsUrl(home.image)}" alt=""><b>${escapeHtml(home.code || '')}</b></div>
+                    ${teamMini(home)}
                     <div class="score-mini">${score}</div>
-                    <div class="team-mini right"><img src="${httpsUrl(away.image)}" alt=""><b>${escapeHtml(away.code || '')}</b></div>
+                    ${teamMini(away, true)}
                   </article>
                 `
               })
@@ -514,8 +535,10 @@ export function renderStandings() {
                       <td class="rank">${rank}</td>
                       <td>
                         <div class="rank-team">
-                          <img src="${httpsUrl(team.image)}" alt="">
-                          <b>${escapeHtml(team.code)}</b>
+                          <button type="button" class="team-hit" data-open-team="${escapeHtml(team.code)}" title="查看 ${escapeHtml(team.code)} 详情">
+                            <img src="${httpsUrl(team.image)}" alt="">
+                            <b>${escapeHtml(team.code)}</b>
+                          </button>
                         </div>
                       </td>
                       <td>${rec.wins ?? 0}-${rec.losses ?? 0}</td>
@@ -541,12 +564,234 @@ function hideBootScreen() {
   window.setTimeout(() => el.remove(), 400)
 }
 
+function findStandingRow(code) {
+  for (const section of normalizeSections(state.standings)) {
+    const rows = []
+    for (const group of section.rankings || []) {
+      for (const team of group.teams || []) {
+        rows.push({ rank: group.ordinal, team, section: section.name })
+      }
+    }
+    const hit = rows.find((r) => r.team.code === code)
+    if (hit) return { ...hit, groupSize: rows.length }
+  }
+  return null
+}
+
+function teamRecentMatches(code, limit = 6) {
+  return splitEvents()
+    .filter((e) => (e.match?.teams || []).some((t) => t.code === code))
+    .sort((a, b) => b.startTime.localeCompare(a.startTime))
+    .slice(0, limit)
+}
+
+function sortPlayers(players) {
+  return [...(players || [])].sort((a, b) => {
+    const ia = ROLE_ORDER.indexOf(a.role)
+    const ib = ROLE_ORDER.indexOf(b.role)
+    const ra = ia === -1 ? 99 : ia
+    const rb = ib === -1 ? 99 : ib
+    if (ra !== rb) return ra - rb
+    return String(a.summonerName || '').localeCompare(String(b.summonerName || ''))
+  })
+}
+
+function roleLabel(role) {
+  return ROLE_CN[role] || role || '未知'
+}
+
+function teamBasicFromSchedule(code) {
+  for (const event of splitEvents()) {
+    const hit = (event.match?.teams || []).find((t) => t.code === code)
+    if (hit) return hit
+  }
+  for (const section of normalizeSections(state.standings)) {
+    for (const group of section.rankings || []) {
+      const hit = (group.teams || []).find((t) => t.code === code)
+      if (hit) return hit
+    }
+  }
+  return { code, name: TEAM_CN[code] || code, image: '' }
+}
+
+export function closeTeamModal() {
+  state.teamModal = null
+  renderTeamModal()
+  document.body.classList.remove('modal-open')
+}
+
+export async function openTeamModal(code) {
+  if (!code || code === 'TBD') return
+  state.teamModal = { code, loading: true, detail: null, error: null }
+  document.body.classList.add('modal-open')
+  renderTeamModal()
+  try {
+    const detail = await fetchTeamDetail(code)
+    if (state.teamModal?.code !== code) return
+    state.teamModal = { code, loading: false, detail, error: detail ? null : '暂无阵容数据' }
+  } catch (err) {
+    console.error(err)
+    if (state.teamModal?.code !== code) return
+    state.teamModal = { code, loading: false, detail: null, error: '阵容加载失败' }
+  }
+  renderTeamModal()
+}
+
+export function renderTeamModal() {
+  const root = document.querySelector('#team-modal')
+  if (!root) return
+  const modal = state.teamModal
+  if (!modal) {
+    root.hidden = true
+    root.innerHTML = ''
+    document.body.classList.remove('modal-open')
+    return
+  }
+
+  const basic = teamBasicFromSchedule(modal.code)
+  const detail = modal.detail
+  const image = httpsUrl(detail?.image || detail?.alternativeImage || basic.image)
+  const name = detail?.name || teamLabel(basic)
+  const region = detail?.homeLeague?.region || detail?.homeLeague?.name || 'LPL'
+  const standing = findStandingRow(modal.code)
+  const diffs = gameDiffMap().get(modal.code)
+  const diffText = diffs ? `${diffs.gf - diffs.ga > 0 ? '+' : ''}${diffs.gf - diffs.ga}` : null
+  const players = sortPlayers(detail?.players)
+  const recent = teamRecentMatches(modal.code)
+
+  root.hidden = false
+  root.innerHTML = `
+    <div class="team-modal-backdrop" data-close-team-modal></div>
+    <aside class="team-drawer" role="dialog" aria-modal="true" aria-labelledby="team-drawer-title">
+      <button type="button" class="team-drawer-close" data-close-team-modal aria-label="关闭">×</button>
+      <header class="team-drawer-head">
+        <img class="team-drawer-logo" src="${image}" alt="${escapeHtml(modal.code)}" />
+        <div>
+          <div class="team-drawer-code">${escapeHtml(modal.code)}</div>
+          <h2 id="team-drawer-title">${escapeHtml(name)}</h2>
+          <p>${escapeHtml(region)}${TEAM_CN[modal.code] ? ` · ${escapeHtml(TEAM_CN[modal.code])}` : ''}</p>
+        </div>
+      </header>
+
+      <section class="team-drawer-stats">
+        <div>
+          <span>积分榜</span>
+          <b>${standing ? `#${standing.rank} · ${escapeHtml(standing.section)}` : '—'}</b>
+        </div>
+        <div>
+          <span>胜负</span>
+          <b>${standing ? `${standing.team.record?.wins ?? 0}-${standing.team.record?.losses ?? 0}` : '—'}</b>
+        </div>
+        <div>
+          <span>净胜局</span>
+          <b>${diffText ?? '—'}</b>
+        </div>
+      </section>
+
+      <section class="team-drawer-section">
+        <h3>现役阵容</h3>
+        ${
+          modal.loading
+            ? `<div class="team-drawer-loading">正在加载队员…</div>`
+            : players.length
+              ? `<div class="player-grid">
+                  ${players
+                    .map(
+                      (p) => `
+                    <article class="player-card">
+                      <img src="${httpsUrl(p.image)}" alt="${escapeHtml(p.summonerName || '')}" loading="lazy" />
+                      <div>
+                        <b>${escapeHtml(p.summonerName || '—')}</b>
+                        <span class="player-role">${escapeHtml(roleLabel(p.role))}</span>
+                        <small>${escapeHtml([p.firstName, p.lastName].filter(Boolean).join(' ') || '')}</small>
+                      </div>
+                    </article>`,
+                    )
+                    .join('')}
+                </div>`
+              : `<div class="team-drawer-empty">${escapeHtml(modal.error || '暂无队员信息')}</div>`
+        }
+      </section>
+
+      <section class="team-drawer-section">
+        <h3>本赛段近期赛程</h3>
+        ${
+          recent.length
+            ? `<div class="team-recent">
+                ${recent
+                  .map((event) => {
+                    const [home, away] = event.match?.teams || [{}, {}]
+                    const status = matchStatus(event)
+                    const score =
+                      status === 'upcoming'
+                        ? 'VS'
+                        : `${home.result?.gameWins ?? 0}:${away.result?.gameWins ?? 0}`
+                    return `
+                      <div class="team-recent-row">
+                        <span>${formatDate(event.startTime).split(' ')[0]} ${formatTime(event.startTime)}</span>
+                        <b>${escapeHtml(home.code || '')} ${score} ${escapeHtml(away.code || '')}</b>
+                        <em>${status === 'completed' ? '已结束' : status === 'live' ? 'LIVE' : '未赛'}</em>
+                      </div>`
+                  })
+                  .join('')}
+              </div>`
+            : `<div class="team-drawer-empty">本赛段暂无相关比赛</div>`
+        }
+      </section>
+
+      <footer class="team-drawer-foot">
+        <button type="button" class="chip" data-filter-team="${escapeHtml(modal.code)}">只看该队赛程</button>
+      </footer>
+    </aside>
+  `
+}
+
+export function bindTeamModalEvents() {
+  if (bindTeamModalEvents.bound) return
+  bindTeamModalEvents.bound = true
+
+  document.addEventListener('click', (e) => {
+    const open = e.target.closest('[data-open-team]')
+    if (open) {
+      const code = open.getAttribute('data-open-team')
+      if (code) {
+        e.preventDefault()
+        openTeamModal(code)
+      }
+      return
+    }
+    if (e.target.closest('[data-close-team-modal]')) {
+      closeTeamModal()
+      return
+    }
+    const filterBtn = e.target.closest('[data-filter-team]')
+    if (filterBtn) {
+      state.team = filterBtn.getAttribute('data-filter-team') || ''
+      state.filter = 'all'
+      closeTeamModal()
+      renderAll()
+    }
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && state.teamModal) closeTeamModal()
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('[data-open-team]')) {
+      const code = e.target.closest('[data-open-team]').getAttribute('data-open-team')
+      if (code) {
+        e.preventDefault()
+        openTeamModal(code)
+      }
+    }
+  })
+}
+
 export function renderAll() {
   renderClock()
   renderHero()
   renderFilters()
   renderSchedule()
   renderStandings()
+  renderTeamModal()
   hideBootScreen()
 }
 

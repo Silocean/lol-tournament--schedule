@@ -47,10 +47,37 @@ export const TEAM_CN = {
   WBG: '微博',
 }
 
+/** LoL Esports getTeams slug，按战队代码索引 */
+export const TEAM_SLUGS = {
+  AL: 'anyones-legend',
+  BLG: 'bilibili-gaming',
+  EDG: 'edward-gaming',
+  JDG: 'jd-gaming',
+  LGD: 'lgd-gaming',
+  TES: 'top-esports',
+  TT: 'thunder-talk-gaming',
+  WE: 'team-we',
+  IG: 'invictus-gaming',
+  LNG: 'lng-esports',
+  NIP: 'shenzen-ninjas-in-pyjamas',
+  WBG: 'weibo-gaming',
+}
+
+export const ROLE_CN = {
+  top: '上单',
+  jungle: '打野',
+  mid: '中单',
+  bottom: 'ADC',
+  support: '辅助',
+}
+
+export const ROLE_ORDER = ['top', 'jungle', 'mid', 'bottom', 'support']
+
 export const ASCENT_TEAMS = new Set(['AL', 'BLG', 'EDG', 'JDG', 'LGD', 'TES', 'TT', 'WE'])
 export const NIRVANA_TEAMS = new Set(['IG', 'LNG', 'NIP', 'WBG'])
 
 const CACHE_KEY = 'lpl-schedule-cache-v2'
+const TEAM_CACHE_KEY = 'lpl-teams-cache-v1'
 
 async function fetchJson(url) {
   const res = await fetch(url, { cache: 'no-store' })
@@ -166,6 +193,72 @@ export function writeCache(payload) {
   }
 }
 
+const teamMemory = new Map()
+
+function readTeamCache() {
+  try {
+    return JSON.parse(localStorage.getItem(TEAM_CACHE_KEY) || 'null') || {}
+  } catch {
+    return {}
+  }
+}
+
+function writeTeamCache(map) {
+  try {
+    localStorage.setItem(TEAM_CACHE_KEY, JSON.stringify(map))
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function rememberTeam(team) {
+  if (!team?.code) return team
+  teamMemory.set(team.code, team)
+  const stored = readTeamCache()
+  stored[team.code] = { savedAt: new Date().toISOString(), team }
+  writeTeamCache(stored)
+  return team
+}
+
+function cachedTeam(code) {
+  if (teamMemory.has(code)) return teamMemory.get(code)
+  const entry = readTeamCache()[code]
+  if (entry?.team) {
+    teamMemory.set(code, entry.team)
+    return entry.team
+  }
+  return null
+}
+
+export async function fetchTeamDetail(code, { force = false } = {}) {
+  if (!code || code === 'TBD') return null
+  if (!force) {
+    const hit = cachedTeam(code)
+    if (hit) return hit
+  }
+
+  const slug = TEAM_SLUGS[code]
+  if (slug) {
+    const data = await fetchJson(`/api/lol/getTeams?hl=zh-CN&id=${encodeURIComponent(slug)}`)
+    const team = (data?.data?.teams || []).find((t) => t.code === code) || data?.data?.teams?.[0]
+    if (team) return rememberTeam(team)
+  }
+
+  // 未知 slug：拉取全量后按 code / LPL 赛区匹配
+  const data = await fetchJson('/api/lol/getTeams?hl=zh-CN')
+  const teams = data?.data?.teams || []
+  const match =
+    teams.find((t) => t.code === code && (t.homeLeague?.name || '').toUpperCase() === 'LPL') ||
+    teams.find((t) => t.code === code)
+  if (match) return rememberTeam(match)
+  return null
+}
+
+export async function prefetchLplTeams() {
+  const codes = Object.keys(TEAM_SLUGS)
+  await Promise.allSettled(codes.map((code) => fetchTeamDetail(code)))
+}
+
 export async function loadSnapshot() {
   try {
     return await fetchJson('/snapshot.json')
@@ -196,6 +289,9 @@ export async function loadLplData(split, { force = false } = {}) {
       ? standingsResult.value
       : prev.standings?.[split.tournamentId]?.data?.standings || []
   const live = liveResult.status === 'fulfilled' ? liveResult.value : []
+
+  // 后台预取战队阵容，不阻塞赛程渲染
+  prefetchLplTeams().catch((err) => console.warn('prefetch teams failed', err))
 
   const payload = {
     fetchedAt: new Date().toISOString(),
