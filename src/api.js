@@ -641,6 +641,27 @@ export async function prefetchLeagueTeams(leagueId = 'lpl') {
   await Promise.allSettled(codes.map((code) => fetchTeamDetail(code, { leagueId })))
 }
 
+let gprCache = null
+let gprCachedAt = 0
+let gprInflight = null
+const GPR_TTL_MS = 10 * 60 * 1000
+
+export async function fetchGpr({ force = false } = {}) {
+  if (!force && gprCache?.teams?.length && Date.now() - gprCachedAt < GPR_TTL_MS) return gprCache
+  if (gprInflight) return gprInflight
+  gprInflight = fetchJson('/api/gpr')
+    .then((data) => {
+      if (!data?.teams?.length) throw new Error('empty gpr')
+      gprCache = data
+      gprCachedAt = Date.now()
+      return data
+    })
+    .finally(() => {
+      gprInflight = null
+    })
+  return gprInflight
+}
+
 export async function loadSnapshot() {
   try {
     return await fetchJson('/snapshot.json')

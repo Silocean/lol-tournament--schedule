@@ -3,6 +3,7 @@ import https from 'node:https'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { loadOfficialGpr } from './lib/gpr.js'
 import { LOLESPORTS_API_KEY, LOLESPORTS_ORIGIN } from './lib/lolesports.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -65,7 +66,23 @@ function serveStatic(req, res) {
   })
 }
 
+async function serveGpr(_req, res) {
+  try {
+    const data = await loadOfficialGpr()
+    send(res, 200, JSON.stringify(data), {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'public, s-maxage=600',
+    })
+  } catch {
+    send(res, 502, JSON.stringify({ error: 'gpr upstream failed' }), {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+    })
+  }
+}
+
 const server = http.createServer((req, res) => {
+  if (req.url.startsWith('/api/gpr')) return serveGpr(req, res)
   if (req.url.startsWith('/api/lol')) return proxyLol(req, res)
   serveStatic(req, res)
 })

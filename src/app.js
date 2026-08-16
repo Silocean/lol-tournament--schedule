@@ -9,6 +9,7 @@ import {
   readStoredLeagueId,
   writeStoredLeagueId,
   fetchTeamDetail,
+  fetchGpr,
 } from './api.js'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
@@ -25,6 +26,11 @@ export const state = {
   fetchedAt: null,
   source: 'live',
   teamModal: null, // { code, loading, detail, error }
+  gpr: null,
+  gprError: '',
+  gprScope: 'all',
+  gprOpen: false,
+  gprExpanded: false,
 }
 
 export function currentLeague() {
@@ -516,6 +522,168 @@ export function renderHero() {
     .join('')
 }
 
+function formatGprDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+function gprDelta(team) {
+  if (team.prevRank == null) return { text: '—', cls: '' }
+  const diff = team.prevRank - team.rank
+  if (diff > 0) return { text: `↑${diff}`, cls: 'up' }
+  if (diff < 0) return { text: `↓${Math.abs(diff)}`, cls: 'down' }
+  return { text: '→', cls: 'same' }
+}
+
+export function renderGpr() {
+  const root = document.querySelector('#gpr')
+  if (!root) return
+  const data = state.gpr
+  if (!data && state.gprError) {
+    root.classList.add('is-collapsed')
+    root.innerHTML = `<div class="gpr-empty">全球战力榜暂时无法加载</div>`
+    return
+  }
+  if (!data) {
+    root.classList.add('is-collapsed')
+    root.innerHTML = `<div class="gpr-empty">正在加载全球战力榜…</div>`
+    return
+  }
+
+  const league = currentLeague()
+  const leagueTeams = data.teams.filter(
+    (t) => t.leagueSlug === league.slug || t.league === league.code,
+  )
+  const scoped = state.gprScope === 'league' ? leagueTeams : data.teams
+  const open = state.gprOpen
+  const limit = state.gprExpanded ? 24 : 12
+  const shown = open ? scoped.slice(0, limit) : []
+  const canExpand = open && scoped.length > 12
+  const preview = data.teams.slice(0, 3)
+  root.classList.toggle('is-collapsed', !open)
+
+  root.innerHTML = `
+    <div class="gpr-top">
+      <button type="button" class="gpr-toggle" data-gpr-open aria-expanded="${open ? 'true' : 'false'}" aria-label="${open ? '收起全球战力榜' : '展开全球战力榜'}">
+        <div>
+          <h2>全球战力榜</h2>
+          <p class="hint">${data.updatedAt ? `${formatGprDate(data.updatedAt)} 更新` : '官方 GPR'} · 跨赛区综合实力</p>
+        </div>
+        ${
+          open
+            ? ''
+            : `<div class="gpr-preview">
+                ${preview
+                  .map(
+                    (team) =>
+                      `<span><b>#${team.rank}</b> ${escapeHtml(team.code)} ${team.gpr}</span>`,
+                  )
+                  .join('')}
+              </div>`
+        }
+      </button>
+      ${
+        open
+          ? `<div class="gpr-actions">
+              <div class="gpr-scope" role="radiogroup" aria-label="战力榜范围">
+                <button type="button" class="${state.gprScope === 'all' ? 'active' : ''}" data-gpr-scope="all" role="radio" aria-checked="${state.gprScope === 'all'}">全球 Top</button>
+                <button type="button" class="${state.gprScope === 'league' ? 'active' : ''}" data-gpr-scope="league" role="radio" aria-checked="${state.gprScope === 'league'}">${escapeHtml(league.code)}</button>
+              </div>
+              <a class="gpr-official" href="https://lolesports.com/en-GB/gpr/2026/current" target="_blank" rel="noopener noreferrer">官方榜单</a>
+            </div>`
+          : ''
+      }
+    </div>
+    ${
+      open
+        ? `
+    <div class="gpr-body">
+      <div class="gpr-leagues">
+        ${(data.leagues || [])
+          .map((item) => {
+            const active = item.slug === league.slug || item.name === league.code
+            return `
+              <div class="gpr-league${active ? ' is-current' : ''}">
+                ${teamImg(item.image, item.name, 'gpr-league-img')}
+                <b>${escapeHtml(item.name)}</b>
+                <span>${item.elo}</span>
+              </div>
+            `
+          })
+          .join('')}
+      </div>
+      <div class="gpr-list">
+        ${
+          shown.length
+            ? shown
+                .map((team) => {
+                  const delta = gprDelta(team)
+                  const home = team.leagueSlug === league.slug || team.league === league.code
+                  return `
+                    <article class="gpr-row${home ? ' is-home' : ''}">
+                      <span class="gpr-rank">${team.rank}</span>
+                      <button type="button" class="team-hit" data-open-team="${escapeHtml(team.code)}" title="查看 ${escapeHtml(team.code)} 详情">
+                        ${teamImg(team.image, team.code)}
+                        <b>${escapeHtml(team.code)}</b>
+                      </button>
+                      <span class="gpr-league-tag">${escapeHtml(team.league)}</span>
+                      <span class="gpr-score">${team.gpr}</span>
+                      <span class="gpr-delta ${delta.cls}">${delta.text}</span>
+                    </article>
+                  `
+                })
+                .join('')
+            : `<div class="gpr-empty">当前联赛暂无上榜战队</div>`
+        }
+      </div>
+      ${
+        canExpand
+          ? `<button type="button" class="gpr-more" data-gpr-expand>${state.gprExpanded ? '显示更少' : `显示更多（${scoped.length}）`}</button>`
+          : ''
+      }
+    </div>`
+        : ''
+    }
+  `
+}
+
+export function bindGprEvents() {
+  if (bindGprEvents.bound) return
+  bindGprEvents.bound = true
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-gpr-open]')) {
+      state.gprOpen = !state.gprOpen
+      if (!state.gprOpen) state.gprExpanded = false
+      renderGpr()
+      return
+    }
+    const scopeBtn = e.target.closest('[data-gpr-scope]')
+    if (scopeBtn) {
+      state.gprScope = scopeBtn.getAttribute('data-gpr-scope') === 'league' ? 'league' : 'all'
+      state.gprExpanded = false
+      renderGpr()
+      return
+    }
+    if (e.target.closest('[data-gpr-expand]')) {
+      state.gprExpanded = !state.gprExpanded
+      renderGpr()
+    }
+  })
+}
+
+export async function loadGprPanel({ force = false } = {}) {
+  try {
+    state.gpr = await fetchGpr({ force })
+    state.gprError = ''
+  } catch (err) {
+    console.warn('gpr failed', err)
+    if (!state.gpr) state.gprError = 'failed'
+  }
+  renderGpr()
+}
+
 export function renderFilters() {
   const teams = teamCodes()
   const splits = currentLeague().splits
@@ -929,6 +1097,7 @@ export function renderAll() {
   renderBrand()
   renderClock()
   renderHero()
+  renderGpr()
   renderFilters()
   renderSchedule()
   renderStandings()
@@ -1006,6 +1175,7 @@ export async function bootstrap({ silent = false, force = true } = {}) {
   ensureSplitId()
   renderBrand()
   if (!silent) renderSync('同步中…')
+  loadGprPanel({ force: silent ? false : force })
   const cache = readCache(state.leagueId)
   if (cache?.events?.length) {
     applyPayload(cache, 'cache')
