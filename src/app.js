@@ -1,20 +1,20 @@
 import {
-  ASCENT_TEAMS,
-  NIRVANA_TEAMS,
   ROLE_CN,
   ROLE_ORDER,
-  SPLITS,
-  TEAM_CN,
-  fetchTeamDetail,
-  loadLplData,
+  getLeague,
+  loadLeagueData,
   loadSnapshot,
   readCache,
+  readStoredLeagueId,
+  writeStoredLeagueId,
+  fetchTeamDetail,
 } from './api.js'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 
 export const state = {
-  splitId: SPLITS.find((s) => s.current)?.id || 's3',
+  leagueId: readStoredLeagueId(),
+  splitId: '',
   filter: 'all',
   team: '',
   stage: 'all',
@@ -26,30 +26,48 @@ export const state = {
   teamModal: null, // { code, loading, detail, error }
 }
 
+export function currentLeague() {
+  return getLeague(state.leagueId)
+}
+
 export function currentSplit() {
-  return SPLITS.find((s) => s.id === state.splitId) || SPLITS[2]
+  const splits = currentLeague().splits
+  return splits.find((s) => s.id === state.splitId) || splits.find((s) => s.current) || splits[0]
 }
 
-export function toCST(iso) {
-  return new Date(Date.parse(iso) + 8 * 3600 * 1000)
+function ensureSplitId() {
+  const splits = currentLeague().splits
+  if (!splits.some((s) => s.id === state.splitId)) {
+    state.splitId = splits.find((s) => s.current)?.id || splits[0].id
+  }
 }
 
-export function cstDateKey(isoOrDate) {
-  const d = typeof isoOrDate === 'string' ? toCST(isoOrDate) : isoOrDate
+ensureSplitId()
+
+export function tzOffsetMs() {
+  return currentLeague().tzOffsetHours * 3600 * 1000
+}
+
+export function toLeagueTime(iso) {
+  return new Date(Date.parse(iso) + tzOffsetMs())
+}
+
+export function leagueDateKey(isoOrDate) {
+  const d = typeof isoOrDate === 'string' ? toLeagueTime(isoOrDate) : isoOrDate
   return d.toISOString().slice(0, 10)
 }
 
-export function todayCST() {
-  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10)
+export function todayLeague() {
+  return new Date(Date.now() + tzOffsetMs()).toISOString().slice(0, 10)
 }
 
 export function formatDate(iso) {
-  const d = toCST(iso)
+  const d = toLeagueTime(iso)
   return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 周${WEEKDAYS[d.getUTCDay()]}`
 }
 
 export function formatTime(iso) {
-  const d = toCST(iso)
+  const d = toLeagueTime(iso)
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
@@ -58,7 +76,8 @@ export function httpsUrl(url) {
 }
 
 export function teamLabel(team) {
-  return TEAM_CN[team.code] || team.name || team.code
+  const names = currentLeague().teamNames || {}
+  return names[team.code] || team.name || team.code
 }
 
 export function stageOf(event) {
@@ -127,14 +146,14 @@ export function countdown(iso, now = Date.now()) {
 export function venueForDate(iso) {
   const split = currentSplit()
   if (!split.venues) return null
-  const key = cstDateKey(iso)
+  const key = leagueDateKey(iso)
   return split.venues.find((v) => key >= v.start && key <= v.end) || null
 }
 
 export function activeVenue() {
   const split = currentSplit()
   if (!split.venues) return null
-  const today = todayCST()
+  const today = todayLeague()
   return (
     split.venues.find((v) => today >= v.start && today <= v.end) ||
     split.venues.find((v) => today < v.start) ||
@@ -145,17 +164,20 @@ export function activeVenue() {
 export function splitEvents() {
   const split = currentSplit()
   return state.events.filter((e) => {
-    const day = cstDateKey(e.startTime)
+    if (e.type && e.type !== 'match') return false
+    const teams = e.match?.teams || []
+    if (!teams.some((t) => t?.code && t.code !== 'TBD')) return false
+    const day = leagueDateKey(e.startTime)
     return day >= split.start && day <= split.end
   })
 }
 
 export function filteredEvents() {
-  const today = todayCST()
+  const today = todayLeague()
   return splitEvents()
     .filter((e) => {
       const status = matchStatus(e)
-      if (state.filter === 'today') return cstDateKey(e.startTime) === today
+      if (state.filter === 'today') return leagueDateKey(e.startTime) === today
       if (state.filter === 'upcoming') return status === 'upcoming' || status === 'live'
       if (state.filter === 'completed') return status === 'completed'
       return true
@@ -202,30 +224,33 @@ export function gameDiffMap() {
 
 export function normalizeSections(standings) {
   const stages = standings?.[0]?.stages || []
-  const groupStage = stages.find((s) => s.slug === 'group_stage') || stages[0]
+  const groupStage =
+    stages.find((s) => s.slug === 'group_stage' || s.slug === 'groups') || stages[0]
+  const ascent = new Set(currentLeague().ascentTeams || [])
+  const nirvana = new Set(currentLeague().nirvanaTeams || [])
   const sections = (groupStage?.sections || []).map((section) => {
     const codes = new Set(
       (section.rankings || []).flatMap((row) => (row.teams || []).map((t) => t.code)),
     )
-    const ascentN = [...codes].filter((c) => ASCENT_TEAMS.has(c)).length
-    const nirvanaN = [...codes].filter((c) => NIRVANA_TEAMS.has(c)).length
+    const ascentN = [...codes].filter((c) => ascent.has(c)).length
+    const nirvanaN = [...codes].filter((c) => nirvana.has(c)).length
     let name = section.name
     if (ascentN >= 6) name = '登峰组'
     else if (nirvanaN >= 3) name = '涅槃组'
     return { ...section, name }
   })
-  const order = { 登峰组: 0, 涅槃组: 1 }
+  const order = { 登峰组: 0, 涅槃组: 1, 传奇组: 0, 突破组: 1 }
   sections.sort((a, b) => (order[a.name] ?? 9) - (order[b.name] ?? 9))
   return sections
 }
 
 function promotionTag(groupName, rank, groupSize) {
-  if (groupName === '登峰组') {
-    if (rank <= 6) return { text: '直接晋级', cls: 'ok' }
-    return { text: '骑士之路', cls: 'warn' }
+  if (groupName === '登峰组' || groupName === '传奇组') {
+    if (rank <= (groupName === '传奇组' ? 2 : 6)) return { text: '直接晋级', cls: 'ok' }
+    return { text: groupName === '传奇组' ? '竞争区' : '骑士之路', cls: 'warn' }
   }
-  if (groupName === '涅槃组') {
-    if (rank <= 2) return { text: '骑士之路', cls: 'warn' }
+  if (groupName === '涅槃组' || groupName === '突破组') {
+    if (rank <= 2) return { text: groupName === '突破组' ? '入围赛' : '骑士之路', cls: 'warn' }
     return { text: '淘汰区', cls: 'bad' }
   }
   if (rank <= Math.ceil(groupSize / 2)) return { text: '晋级区', cls: 'ok' }
@@ -290,8 +315,8 @@ function statusBadge(status, event) {
 export function renderClock() {
   const el = document.querySelector('#clock')
   if (!el) return
-  const now = new Date(Date.now() + 8 * 3600 * 1000)
-  el.textContent = `北京时间 ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}:${String(now.getUTCSeconds()).padStart(2, '0')}`
+  const now = new Date(Date.now() + tzOffsetMs())
+  el.textContent = `${currentLeague().tzLabel} ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}:${String(now.getUTCSeconds()).padStart(2, '0')}`
 }
 
 export function renderSync(text, cls = '') {
@@ -301,12 +326,29 @@ export function renderSync(text, cls = '') {
   el.textContent = text
 }
 
+export function renderBrand() {
+  const league = currentLeague()
+  const mark = document.querySelector('.brand-mark')
+  const title = document.querySelector('.brand h1')
+  const sub = document.querySelector('.brand p')
+  if (mark) mark.textContent = league.code
+  if (title) title.textContent = league.name
+  if (sub) sub.textContent = '2026 赛季赛程中心'
+  document.title = `${league.code} 2026 赛程 | ${league.name}`
+  document.querySelectorAll('[data-league]').forEach((btn) => {
+    const active = btn.getAttribute('data-league') === state.leagueId
+    btn.classList.toggle('active', active)
+    btn.setAttribute('aria-checked', active ? 'true' : 'false')
+  })
+}
+
 export function renderHero() {
+  const league = currentLeague()
   const split = currentSplit()
   const venue = activeVenue()
-  const today = todayCST()
+  const today = todayLeague()
   const todays = splitEvents()
-    .filter((e) => cstDateKey(e.startTime) === today)
+    .filter((e) => leagueDateKey(e.startTime) === today)
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
 
   const title = venue
@@ -327,7 +369,7 @@ export function renderHero() {
 
   document.querySelector('#hero').innerHTML = `
     <article class="hero-card">
-      <div class="kicker">LPL 2026 · ${escapeHtml(split.name)}</div>
+      <div class="kicker">${escapeHtml(league.code)} 2026 · ${escapeHtml(split.name)}</div>
       <h2>${escapeHtml(title)}</h2>
       <p>${escapeHtml(subtitle)}${nextLabel ? ` · ${escapeHtml(nextLabel)}` : ''}</p>
     </article>
@@ -383,6 +425,8 @@ export function renderHero() {
 
 export function renderFilters() {
   const teams = teamCodes()
+  const splits = currentLeague().splits
+  const stageFilters = currentLeague().stageFilters || []
   document.querySelector('#filters').innerHTML = `
     <div class="filter-chips">
     ${['all:全部', 'today:今日', 'upcoming:未赛', 'completed:赛果']
@@ -394,11 +438,12 @@ export function renderFilters() {
     </div>
     <div class="filter-selects">
     <select class="select" data-stage>
-      <option value="all">全部阶段</option>
-      <option value="regular" ${state.stage === 'regular' ? 'selected' : ''}>组内赛</option>
-      <option value="knights" ${state.stage === 'knights' ? 'selected' : ''}>骑士之路</option>
-      <option value="playoffs" ${state.stage === 'playoffs' ? 'selected' : ''}>季后赛</option>
-      <option value="qualifier" ${state.stage === 'qualifier' ? 'selected' : ''}>资格赛</option>
+      ${stageFilters
+        .map(
+          (s) =>
+            `<option value="${escapeHtml(s.id)}" ${state.stage === s.id ? 'selected' : ''}>${escapeHtml(s.label)}</option>`,
+        )
+        .join('')}
     </select>
     <select class="select" data-team>
       <option value="">全部战队</option>
@@ -410,10 +455,12 @@ export function renderFilters() {
         .join('')}
     </select>
     <select class="select" data-split>
-      ${SPLITS.map(
-        (s) =>
-          `<option value="${s.id}" ${state.splitId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`,
-      ).join('')}
+      ${splits
+        .map(
+          (s) =>
+            `<option value="${s.id}" ${state.splitId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`,
+        )
+        .join('')}
     </select>
     </div>
   `
@@ -449,7 +496,7 @@ export function renderSchedule() {
 
   const groups = new Map()
   for (const event of events) {
-    const key = cstDateKey(event.startTime)
+    const key = leagueDateKey(event.startTime)
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key).push(event)
   }
@@ -611,7 +658,7 @@ function teamBasicFromSchedule(code) {
       if (hit) return hit
     }
   }
-  return { code, name: TEAM_CN[code] || code, image: '' }
+  return { code, name: currentLeague().teamNames?.[code] || code, image: '' }
 }
 
 export function closeTeamModal() {
@@ -626,7 +673,7 @@ export async function openTeamModal(code) {
   document.body.classList.add('modal-open')
   renderTeamModal()
   try {
-    const detail = await fetchTeamDetail(code)
+    const detail = await fetchTeamDetail(code, { leagueId: state.leagueId })
     if (state.teamModal?.code !== code) return
     state.teamModal = { code, loading: false, detail, error: detail ? null : '暂无阵容数据' }
   } catch (err) {
@@ -652,7 +699,7 @@ export function renderTeamModal() {
   const detail = modal.detail
   const image = httpsUrl(detail?.image || detail?.alternativeImage || basic.image)
   const name = detail?.name || teamLabel(basic)
-  const region = detail?.homeLeague?.region || detail?.homeLeague?.name || 'LPL'
+  const region = detail?.homeLeague?.region || detail?.homeLeague?.name || currentLeague().region
   const standing = findStandingRow(modal.code)
   const diffs = gameDiffMap().get(modal.code)
   const diffText = diffs ? `${diffs.gf - diffs.ga > 0 ? '+' : ''}${diffs.gf - diffs.ga}` : null
@@ -669,7 +716,7 @@ export function renderTeamModal() {
         <div>
           <div class="team-drawer-code">${escapeHtml(modal.code)}</div>
           <h2 id="team-drawer-title">${escapeHtml(name)}</h2>
-          <p>${escapeHtml(region)}${TEAM_CN[modal.code] ? ` · ${escapeHtml(TEAM_CN[modal.code])}` : ''}</p>
+          <p>${escapeHtml(region)}${currentLeague().teamNames?.[modal.code] ? ` · ${escapeHtml(currentLeague().teamNames[modal.code])}` : ''}</p>
         </div>
       </header>
 
@@ -786,6 +833,7 @@ export function bindTeamModalEvents() {
 }
 
 export function renderAll() {
+  renderBrand()
   renderClock()
   renderHero()
   renderFilters()
@@ -796,10 +844,11 @@ export function renderAll() {
 }
 
 function mergeLiveEvents(events, liveEvents) {
+  const slug = currentLeague().slug
   const liveMap = new Map()
   for (const live of liveEvents || []) {
-    const league = live.league?.slug || live.league?.name || ''
-    if (league && league !== 'lpl' && league !== 'LPL') continue
+    const league = (live.league?.slug || live.league?.name || '').toLowerCase()
+    if (league && league !== slug) continue
     const id = live.match?.id || live.id
     if (id) liveMap.set(String(id), live)
   }
@@ -834,14 +883,41 @@ function applyPayload(payload, source) {
   state.source = source
 }
 
+export async function switchLeague(leagueId) {
+  if (!getLeague(leagueId) || leagueId === state.leagueId) return
+  closeTeamModal()
+  state.leagueId = leagueId
+  writeStoredLeagueId(leagueId)
+  state.team = ''
+  state.filter = 'all'
+  state.stage = 'all'
+  state.events = []
+  state.standings = []
+  ensureSplitId()
+  renderBrand()
+  await bootstrap({ silent: false, force: true })
+}
+
+export function bindLeagueSwitch() {
+  if (bindLeagueSwitch.bound) return
+  bindLeagueSwitch.bound = true
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-league]')
+    if (!btn) return
+    const id = btn.getAttribute('data-league')
+    if (id) switchLeague(id)
+  })
+}
+
 export async function bootstrap({ silent = false, force = true } = {}) {
+  ensureSplitId()
   if (!silent) renderSync('同步中…')
-  const cache = readCache()
+  const cache = readCache(state.leagueId)
   if (cache?.events?.length) {
     applyPayload(cache, 'cache')
     renderAll()
     renderSync('已显示缓存，正在刷新…', 'stale')
-  } else {
+  } else if (state.leagueId === 'lpl') {
     const snapshot = await loadSnapshot()
     if (snapshot?.events?.length) {
       applyPayload(snapshot, 'snapshot')
@@ -851,10 +927,13 @@ export async function bootstrap({ silent = false, force = true } = {}) {
       document.querySelector('#schedule').innerHTML = `<div class="loading">正在加载赛程…</div>`
       hideBootScreen()
     }
+  } else if (!silent) {
+    document.querySelector('#schedule').innerHTML = `<div class="loading">正在加载赛程…</div>`
+    hideBootScreen()
   }
 
   try {
-    const live = await loadLplData(currentSplit(), { force })
+    const live = await loadLeagueData(state.leagueId, currentSplit(), { force })
     applyPayload(live, 'live')
     renderAll()
     const t = live.fetchedAt ? new Date(live.fetchedAt) : new Date()
@@ -864,12 +943,14 @@ export async function bootstrap({ silent = false, force = true } = {}) {
   } catch (err) {
     console.error(err)
     if (!state.events.length) {
-      const snapshot = await loadSnapshot()
-      if (snapshot) {
-        applyPayload(snapshot, 'snapshot')
-        renderAll()
-        renderSync('接口暂不可用，已显示本地快照', 'stale')
-        return
+      if (state.leagueId === 'lpl') {
+        const snapshot = await loadSnapshot()
+        if (snapshot) {
+          applyPayload(snapshot, 'snapshot')
+          renderAll()
+          renderSync('接口暂不可用，已显示本地快照', 'stale')
+          return
+        }
       }
       document.querySelector('#schedule').innerHTML = `<div class="error">赛程加载失败，请稍后重试</div>`
       hideBootScreen()
