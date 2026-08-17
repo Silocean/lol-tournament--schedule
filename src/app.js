@@ -424,12 +424,12 @@ export function renderBrand() {
   const title = document.querySelector('.brand h1')
   const sub = document.querySelector('.brand p')
   if (mark) {
-    mark.textContent = league.code
-    mark.classList.toggle('is-long', String(league.code || '').length > 3)
+    mark.textContent = 'LoL'
+    mark.classList.remove('is-long')
   }
-  if (title) title.textContent = league.name
-  if (sub) sub.textContent = `${league.region} · 2026 赛季赛程`
-  document.title = `${league.code} 2026 赛程 | ${league.name}`
+  if (title) title.textContent = '全球赛事赛程'
+  if (sub) sub.textContent = `${league.code} · ${league.region} · 2026`
+  document.title = `全球赛事赛程 | ${league.code} 2026`
 
   const switchEl = document.querySelector('#league-switch')
   if (switchEl) {
