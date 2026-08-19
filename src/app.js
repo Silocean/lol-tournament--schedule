@@ -392,13 +392,20 @@ function teamCell(team, align = 'left', winnerCode) {
 }
 
 function statusBadge(status, event) {
+  const now = Date.now()
   if (status === 'live') {
     const game = liveGameLabel(event)
     return `<span class="badge live">LIVE${game ? ` · ${escapeHtml(game)}` : ''}</span>`
   }
   if (status === 'upcoming') {
     const start = Date.parse(event.startTime)
-    const text = Number.isFinite(start) && start <= Date.now() ? '即将开始' : countdown(event.startTime) || '未开始'
+    let text = countdown(event.startTime) || '未开始'
+
+    // 开赛时间到了但 live 数据尚未标记 inProgress（例如延迟/还没开始加载局间数据）
+    if (Number.isFinite(start) && start <= now) {
+      const mins = Math.floor((now - start) / 60000)
+      text = mins <= 10 ? `等待开打` : `已延迟${mins}分`
+    }
     return `<span class="badge soon">${escapeHtml(text)}</span>`
   }
   return `<span class="badge done">已结束</span>`
