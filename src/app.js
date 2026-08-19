@@ -145,9 +145,16 @@ function liveGameLabel(event) {
 export function matchStatus(event, now = Date.now()) {
   if (isSeriesDecided(event)) return 'completed'
   if (hasGameplayStarted(event)) return 'live'
+  if (event.state === 'inProgress') return 'live'
+  if (state.liveIds.has(String(event.match?.id || ''))) return 'live'
 
   const start = Date.parse(event.startTime)
-  if (!Number.isFinite(start) || start > now) return 'upcoming'
+  const started = Number.isFinite(start) && start <= now
+
+  // 赛程 API 有时在赛果同步前就把 state 标成 completed（0-0 且无 outcome）
+  if (event.state === 'completed' && started) return 'live'
+
+  if (!started) return 'upcoming'
   return 'upcoming'
 }
 
@@ -404,7 +411,7 @@ function statusBadge(status, event) {
     // 开赛时间到了但 live 数据尚未标记 inProgress（例如延迟/还没开始加载局间数据）
     if (Number.isFinite(start) && start <= now) {
       const mins = Math.floor((now - start) / 60000)
-      text = mins <= 10 ? `等待开打` : `已延迟${mins}分`
+      text = mins <= 10 ? `等待开打` : mins <= 45 ? `已延迟${mins}分` : `可能进行中`
     }
     return `<span class="badge soon">${escapeHtml(text)}</span>`
   }
